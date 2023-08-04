@@ -1,5 +1,8 @@
 package com.example.sunnyweather.logic
 import androidx.lifecycle.liveData
+import com.example.sunnyweather.logic.dao.PlaceDao
+import com.example.sunnyweather.logic.model.Place
+import com.example.sunnyweather.logic.model.Weather
 import com.example.sunnyweather.logic.network.SunnyWeatherNetwork
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -28,6 +31,38 @@ object Repository {
             Result.failure(java.lang.RuntimeException("response status is ${placeResponse.status}"))
         }
     }
+    fun refreshWeather(lng: String, lat: String) = fire(Dispatchers.IO) {
+        coroutineScope {
+            /**
+             * 获取实时天气信息和获取未来天气信息这2个请求是没有先后顺序的，可以让他们并发执行提高效率
+             * 但是要在同时得到他们的响应结果后才能进一步执行程序
+             * 只需要分别在两个async函数中发起网络请求，然后再分别调用它们的await()方法
+             * 就可以保证只有在两个网络请求都成功响应之后，才会进一步执行程序
+             **/
+            val deferredRealtime = async {
+                SunnyWeatherNetwork.getRealtimeWeather(lng, lat)
+            }
+            val deferredDaily = async {
+                SunnyWeatherNetwork.getDailyWeather(lng, lat)
+            }
+            val realtimeResponse = deferredRealtime.await()
+            val dailyResponse = deferredDaily.await()
+            //如果2个请求的响应状态都是ok
+            if (realtimeResponse.status == "ok" && dailyResponse.status == "ok") {
+                //则封装到一个Weather对象中
+                val weather = Weather(realtimeResponse.result.realtime, dailyResponse.result.daily)
+                //使用Result.success()方法来包装这个Weather对象
+                Result.success(weather)
+            } else {
+                //若不是2个请求的响应都成功，则用Result.failure()方法包装一个异常信息
+                Result.failure(
+                    RuntimeException(
+                        "realtime response status is ${realtimeResponse.status}" + "daily response status is ${dailyResponse.status}"
+                    )
+                )
+            }
+            }
+        }
 
     private fun <T> fire(context: CoroutineContext, block: suspend () -> Result<T>) =
         liveData<Result<T>>(context) {
@@ -37,5 +72,10 @@ object Repository {
                 Result.failure<T>(e)
             }
             emit(result)
-        }}
+        }
+    fun savePlace(place: Place) = PlaceDao.savePlace(place)
+
+    fun getSavedPlace() = PlaceDao.getSavedPlace()
+    fun isPlaceSaved() = PlaceDao.isPlaceSaved()
+    }
 

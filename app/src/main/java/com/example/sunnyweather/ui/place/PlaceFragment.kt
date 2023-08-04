@@ -17,6 +17,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.sunnyweather.MainActivity
 import com.example.sunnyweather.R
+import com.example.sunnyweather.ui.weather.WeatherActivity
 
 
 class PlaceFragment : Fragment() {
@@ -32,6 +33,18 @@ class PlaceFragment : Fragment() {
         super.onActivityCreated(savedInstanceState)
         //如果当前已有存储的城市数据，就获取已存储数据并解析成Place对象
         //设置布局管理器
+        if ( viewModel.isPlaceSaved()) {
+            val place = viewModel.getSavedPlace()
+            //取得该对象的经纬度坐标和城市名直接跳转并传递给WeatherActivity，这样用户就不需要每次都重新搜索
+            val intent = Intent(context, WeatherActivity::class.java).apply {
+                putExtra("location_lng", place.location.lng)
+                putExtra("location_lat", place.location.lat)
+                putExtra("place_name", place.name)
+            }
+            startActivity(intent)
+            activity?.finish()
+            return
+        }
         val layoutManager = LinearLayoutManager(activity)
         val recyclerView : RecyclerView? = view?.findViewById(R.id.recyclerView)
         recyclerView?.layoutManager = layoutManager
